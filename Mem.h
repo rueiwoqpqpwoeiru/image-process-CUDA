@@ -113,33 +113,33 @@ template<typename T> struct D_mem {
 	// open memory
 	void open_2d(unsigned int w, unsigned int h, unsigned int ch, const cudaTextureFilterMode& interpolation = cudaFilterModePoint) {
 		if (nullptr == d_data.ptr) {
-			d_data.w = w; d_data.h = h;	d_data.ch = ch;
-			Stopwatch sw;
-			CUDA_CHECK(cudaMallocPitch(&(d_data.ptr), &(d_data.pitch), sizeof(T) * d_data.w, d_data.h * d_data.ch));
-			sw.print_time(__FUNCTION__);
-			h_data.open(d_data.w, d_data.h, d_data.ch);
+		    d_data.w = w; d_data.h = h;	d_data.ch = ch;
+		    Stopwatch sw;
+		    CUDA_CHECK(cudaMallocPitch(&(d_data.ptr), &(d_data.pitch), sizeof(T) * d_data.w, d_data.h * d_data.ch));
+		    sw.print_time(__FUNCTION__);
+		    h_data.open(d_data.w, d_data.h, d_data.ch);
 		    this->use_tex(interpolation);
 		}
 	}
 	void open_1d(unsigned int w, unsigned int ch) {
 		if (nullptr == d_data.ptr) {
-			d_data.w = w; d_data.h = 1;	d_data.ch = ch;
-			Stopwatch sw;
-			CUDA_CHECK(cudaMalloc(&(d_data.ptr), sizeof(T) * d_data.w * d_data.ch));
-			sw.print_time(__FUNCTION__);
-			d_data.pitch = 0;  // not use
-			h_data.open(d_data.w, d_data.h, d_data.ch);
+		    d_data.w = w; d_data.h = 1;	d_data.ch = ch;
+		    Stopwatch sw;
+		    CUDA_CHECK(cudaMalloc(&(d_data.ptr), sizeof(T) * d_data.w * d_data.ch));
+		    sw.print_time(__FUNCTION__);
+		    d_data.pitch = 0;  // not use
+		    h_data.open(d_data.w, d_data.h, d_data.ch);
 		}
 	}
 	void close() {
 		if (nullptr != d_data.ptr) {
-			Stopwatch sw;
-			cudaFree(d_data.ptr);
-			sw.print_time(__FUNCTION__);
-			d_data.ptr = nullptr;
-			d_data.pitch = 0;
-			d_data.w = 0; d_data.h = 0;	d_data.ch = 0;
-			h_data.close();
+		    Stopwatch sw;
+		    cudaFree(d_data.ptr);
+		    sw.print_time(__FUNCTION__);
+		    d_data.ptr = nullptr;
+		    d_data.pitch = 0;
+		    d_data.w = 0; d_data.h = 0;	d_data.ch = 0;
+		    h_data.close();
 		}
 	}
 	D_mem() {
