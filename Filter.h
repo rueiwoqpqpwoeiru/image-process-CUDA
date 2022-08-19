@@ -90,24 +90,42 @@ public:
 		_out.open_2d(w, h, ch);
 	}
 	void alloc_flt(unsigned int w, unsigned int h, unsigned int ch) {
-		_flt.open_2d(w, h, ch);
+		_flt.open(w, h, ch);
+		_xy_list.open_2d(2, w * h, ch);
 	}
 	// binary (w, h are odd)
 	void set_flt(unsigned int w, unsigned int h, const unsigned int ch) {
 		// set host data ( set zero )
-		for (unsigned int i = 0; i < _flt.h_data.h; i++) {
-			for (unsigned int j = 0; j < _flt.h_data.w; j++) {
-				_flt.h_data.val(j, i, ch) = 0;
+		for (unsigned int i = 0; i < _flt.h; i++) {
+			for (unsigned int j = 0; j < _flt.w; j++) {
+				_flt.val(j, i, ch) = 0;
 			}
 		}
 		// set host data
 		for (unsigned int i = 0; i < h; i++) {
 			for (unsigned int j = 0; j < w; j++) {
-				_flt.h_data.val(_flt.h_data.w / 2 - w / 2 + j, _flt.h_data.h / 2 - h / 2 + i, ch) = 1;
+				_flt.val(_flt.w / 2 - w / 2 + j, _flt.h / 2 - h / 2 + i, ch) = 1;
+			}
+		}
+		// set host data (xy pos) ( set zero )
+		for (unsigned int i = 0; i < _flt.w * _flt.h; i++) {
+			_xy_list.h_data.val(0, i, ch) = 0;
+			_xy_list.h_data.val(1, i, ch) = 0;
+		}
+		// set host data (xy pos)
+		_xy_list.h_data.val(0, 0, ch) = w * h;  // store the size in the first row
+		size_t count = 1;
+		for (unsigned int i = 0; i < _flt.h; i++) {
+			for (unsigned int j = 0; j < _flt.w; j++) {
+				if (1 == _flt.val(j, i, ch)) {
+					_xy_list.h_data.val(0, count, ch) = static_cast<uint16>(j);
+					_xy_list.h_data.val(1, count, ch) = static_cast<uint16>(i);
+					count = count + 1;
+				}
 			}
 		}
 		// trans host to device (trans other channels)
-		_flt.h2d();
+		_xy_list.h2d();
 	}
 	void do_proc(const D_mem<T_in>& in, const unsigned int& ch_in, const unsigned int& ch_out, const unsigned int& ch_flt, const std::string& mode, const dim3& block = dim3(32, 8)) {
 		Proc_unit p(in.d_data.w, in.d_data.h, block);
@@ -122,40 +140,39 @@ public:
 		else {
 			assert(false);
 		}
-		K_func::generic_kernel<Morphology_filtered_img_erode_dilate> << < p.grid, p.block >> > (this, in.d_data, _out.d_data, _flt.d_data, ch_in, ch_out, ch_flt, is_erode);
+		K_func::generic_kernel<Morphology_filtered_img_erode_dilate> << < p.grid, p.block >> > (this, in.d_data, _out.d_data, _xy_list.d_data, ch_in, ch_out, ch_flt, _flt.w, _flt.h, is_erode);
 		sw.print_time(__FUNCTION__);
 	}
-	__device__ __forceinline__ void kernel(const D_data<T_in> in, D_data<T_out> out, D_data<uint8> flt,
-		const unsigned int ch_in, const unsigned int ch_out, const unsigned int ch_flt, const bool is_erode) {
+	__device__ __forceinline__ void kernel(const D_data<T_in> in, D_data<T_out> out, D_data<uint16> xy_list,
+		const unsigned int ch_in, const unsigned int ch_out, const unsigned int ch_flt, 
+		const unsigned int flt_w, const unsigned int flt_h, const bool is_erode) {
 		unsigned int x = blockDim.x * blockIdx.x + threadIdx.x;
 		unsigned int y = blockDim.y * blockIdx.y + threadIdx.y;
-		unsigned int half_w = flt.w / 2;
-		unsigned int half_h = flt.h / 2;
+		unsigned int half_w = flt_w / 2;
+		unsigned int half_h = flt_h / 2;
 		if ((half_w <= x && x < in.w - half_w) && (half_h <= y && y < in.h - half_h)) {
 			T_in tmp = in.tex(x, y, ch_in);
 			// erode
 			if (true == is_erode) {
-				for (unsigned int i = 0; i < flt.h; i++) {
-					for (unsigned int j = 0; j < flt.w; j++) {
-						if (1 == flt.tex(j, i, ch_flt)) {
-							T_in val = in.tex(x - half_w + j, y - half_h + i, ch_in);
-							if (tmp > val) {
-								tmp = val;
-							}
-						}
+				uint16 size = xy_list.tex(0, 0, ch_flt);  // size is stored in the first row
+				for (uint16 i = 0; i < size; i++) {
+					uint16 jj = xy_list.tex(0, i + 1, ch_flt);
+					uint16 ii = xy_list.tex(1, i + 1, ch_flt);
+					T_in val = in.tex(x - half_w + jj, y - half_h + ii, ch_in);
+					if (tmp > val) {
+						tmp = val;
 					}
 				}
 			}
 			// dilate
 			else {
-				for (unsigned int i = 0; i < flt.h; i++) {
-					for (unsigned int j = 0; j < flt.w; j++) {
-						if (1 == flt.tex(j, i, ch_flt)) {
-							T_in val = in.tex(x - half_w + j, y - half_h + i, ch_in);
-							if (tmp < val) {
-								tmp = val;
-							}
-						}
+				uint16 size = xy_list.tex(0, 0, ch_flt);
+				for (uint16 i = 0; i < size; i++) {
+					uint16 jj = xy_list.tex(0, i + 1, ch_flt);
+					uint16 ii = xy_list.tex(1, i + 1, ch_flt);
+					T_in val = in.tex(x - half_w + jj, y - half_h + ii, ch_in);
+					if (tmp < val) {
+						tmp = val;
 					}
 				}
 			}
@@ -168,10 +185,11 @@ public:
 		}
 	}
 	const D_mem<T_out>& get_out() const { return _out; }
-	const D_mem<uint8>& get_flt() const { return _flt; }
+	const D_mem<uint16>& get_flt() const { return _xy_list; }
 private:
 	D_mem<T_out> _out;
-	D_mem<uint8> _flt;
+	D_mem<uint16> _xy_list;
+	H_data<uint8> _flt;
 };
 
 // morphology_filtered_img_open_close
@@ -205,7 +223,7 @@ public:
 	}
 	const D_mem<T_out>& get_buf() const { return _buf.get_out(); }
 	const D_mem<T_out>& get_out() const { return _out.get_out(); }
-	const D_mem<uint8>& get_flt() const { return _out.get_flt(); }
+	const D_mem<uint16>& get_flt() const { return _out.get_flt(); }
 private:
 	Morphology_filtered_img_erode_dilate<T_in, T_out> _buf;  // 1st output
 	Morphology_filtered_img_erode_dilate<T_in, T_out> _out;  // 2nd output
