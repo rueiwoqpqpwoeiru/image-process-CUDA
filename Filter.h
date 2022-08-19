@@ -26,21 +26,21 @@ public:
 				for (unsigned int j = 0; j < w; j++) {
 					unsigned int d2 = pow(static_cast<int>(i) - static_cast<int>(h / 2), 2) + pow(static_cast<int>(j) - static_cast<int>(w / 2), 2);
 					double val = (1.0 / (2.0 * 3.141592653589793 * pow(sigma, 2))) * exp(-(static_cast<float>(d2)) / (sigma * sigma));
-					_flt.h_data.val(i, j, ch) = static_cast<float>(val);
-					sum = sum + _flt.h_data.val(i, j, ch);
+					_flt.h_data.val(j, i, ch) = static_cast<float>(val);
+					sum = sum + _flt.h_data.val(j, i, ch);
 				}
 			}
 			// normalize
 			for (unsigned int i = 0; i < h; i++) {
 				for (unsigned int j = 0; j < w; j++) {
-					_flt.h_data.val(i, j, ch) = static_cast<float>(_flt.h_data.val(i, j, ch) / sum);
+					_flt.h_data.val(j, i, ch) = static_cast<float>(_flt.h_data.val(j, i, ch) / sum);
 				}
 			}
 		}
 		else {
 			for (unsigned int i = 0; i < h; i++) {
 				for (unsigned int j = 0; j < w; j++) {
-					_flt.h_data.val(i, j, ch) = 0.0;
+					_flt.h_data.val(j, i, ch) = 0.0;
 				}
 			}
 			_flt.h_data.val(h / 2, w / 2, 0) = 1.0;
@@ -64,7 +64,7 @@ public:
 			float sum = 0.0;
 			for (unsigned int i = 0; i < flt.h; i++) {
 				for (unsigned int j = 0; j < flt.w; j++) {
-					sum = __fmaf_rn(static_cast<float>(in.tex(x - half_h + i, y - half_w + j, ch_in)), flt.tex(i, j, ch_flt), sum);
+					sum = __fmaf_rn(static_cast<float>(in.tex(x - half_w + j, y - half_h + i, ch_in)), flt.tex(j, i, ch_flt), sum);
 					// __fmaf_rn(a,b,c) compute (a * b + c) as a single operation, in round-to-nearest-even mode
 				}
 			}
@@ -97,13 +97,13 @@ public:
 		// set host data ( set zero )
 		for (unsigned int i = 0; i < _flt.h_data.h; i++) {
 			for (unsigned int j = 0; j < _flt.h_data.w; j++) {
-				_flt.h_data.val(i, j, ch) = 0;
+				_flt.h_data.val(j, i, ch) = 0;
 			}
 		}
 		// set host data
 		for (unsigned int i = 0; i < h; i++) {
 			for (unsigned int j = 0; j < w; j++) {
-				_flt.h_data.val(_flt.h_data.h / 2 - h / 2 + i, _flt.h_data.w / 2 - w / 2 + j, ch) = 1;
+				_flt.h_data.val(_flt.h_data.w / 2 - w / 2 + j, _flt.h_data.h / 2 - h / 2 + i, ch) = 1;
 			}
 		}
 		// trans host to device (trans other channels)
@@ -137,8 +137,8 @@ public:
 			if (true == is_erode) {
 				for (unsigned int i = 0; i < flt.h; i++) {
 					for (unsigned int j = 0; j < flt.w; j++) {
-						if (1 == flt.tex(i, j, ch_flt)) {
-							T_in val = in.tex(x - half_h + i, y - half_w + j, ch_in);
+						if (1 == flt.tex(j, i, ch_flt)) {
+							T_in val = in.tex(x - half_w + j, y - half_h + i, ch_in);
 							if (tmp > val) {
 								tmp = val;
 							}
@@ -150,8 +150,8 @@ public:
 			else {
 				for (unsigned int i = 0; i < flt.h; i++) {
 					for (unsigned int j = 0; j < flt.w; j++) {
-						if (1 == flt.tex(i, j, ch_flt)) {
-							T_in val = in.tex(x - half_h + i, y - half_w + j, ch_in);
+						if (1 == flt.tex(j, i, ch_flt)) {
+							T_in val = in.tex(x - half_w + j, y - half_h + i, ch_in);
 							if (tmp < val) {
 								tmp = val;
 							}
@@ -227,7 +227,7 @@ public:
 		_flt_size[ch] = { static_cast<int>(w), static_cast<int>(h) };
 	}
 	void do_proc(const D_mem<T_in>& in, const unsigned int& ch_in, const unsigned int& ch_out, const unsigned int& ch_flt) {
-		NppiSize oSizeROI = { static_cast<int>(in.d_data.w), static_cast<int>(in.d_data.h) };
+		NppiSize oSizeROI = { in.d_data.w, in.d_data.h };
 		NppiPoint oAnchor = { _flt_size[ch_flt].width / 2, _flt_size[ch_flt].height / 2 };
 		_cast_img_0.do_proc(in);  // cast all ch
 		Stopwatch sw;
