@@ -9,7 +9,7 @@
 // Warning : low speed (first time)
 template<typename T_in> class Op_stat {
 public:
-	void open(const D_mem<uint16>& in_img) {
+	void open(const D_mem<T_in>& in_img) {
 		_cast_img_0.alloc_out(in_img.d_data.w, in_img.d_data.h, in_img.d_data.ch);
 		int hpBufferSize = _get_max_buffer_size(static_cast<int>(in_img.d_data.w), static_cast<int>(in_img.d_data.h));
 		_buf.open_2d(hpBufferSize, 1, 1);
